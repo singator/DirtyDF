@@ -4,9 +4,18 @@ from numpy.random import default_rng
 from time import time
 from functools import reduce
 from warnings import warn
-from .stainer import Stainer
-from .history import *
+from stainer import Stainer
+from history import *
 
+"""
+Something of a wrapper class for the individual stainer methods. 
+
+When adding the stainer methods to a given DataFrame’s DirtyDf class, there is no need to include the row_idx / col_idx that the stainer needs to work on (for eg. as in InflectionStainer). Upon instantiation of the DirtyDf class with a given DataFrame, the various column indexes and column types are noted down.
+
+For the `run-stainer()` method, the individual stainer classes previously added to the DirtyDf class are extracted and run on the DataFrame. Note that before being run, the DirtyDf class handles the selection of the appropriate	rows / columns that the stainer will operate on. This is handled in the `run_stainer()` method before the actual `stainer.transform()` is called on the DataFrame. 
+
+The philosophy of this class seems to be that at the addition of stainers and running of stainers, a new DirtyDf object is returned. the original underlying DirtyDf object is not changed. 
+"""
 class DirtyDF:
     """
     Dirty DataFrame. Stores information about the dataframe to be stained, previous staining results, 
@@ -349,6 +358,7 @@ class DirtyDF:
             for k, v in original.items():
                 final_map[k] = []
                 for element in v:
+
                     final_map[k].extend(new[element])
             """
             final_map = np.zeros((len(original), len(new[0])))

@@ -20,7 +20,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires ='>=3.6',
+    python_requires ='>=3.6', # Requirements.txt file has certain packages available only up till Python 3.6
     install_requires=['pandas>=1.2.1', 'statsmodels>=0.12.1', 
     'scipy>=1.6.0', 'inflection>=0.5.1', 'numpy>=1.19.5']
     #    'pandas',

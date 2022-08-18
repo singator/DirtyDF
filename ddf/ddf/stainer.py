@@ -8,7 +8,8 @@ from pandas.api.types import is_numeric_dtype, is_datetime64_any_dtype, is_categ
 from statsmodels.regression.linear_model import OLS
 from statsmodels.tools import add_constant
 from scipy.stats import spearmanr,norm
-from .samplers import rand_from_Finv
+from samplers import rand_from_Finv
+from catcorr import new_mutual_cols
 
 class Stainer:
     """Parent Stainer class that contains basic initialisations meant for all stainers to inherit from.
@@ -297,7 +298,11 @@ class RowDuplicateStainer(Stainer):
         _, row, col = self._init_transform(df, row_idx, col_idx)
         original_types = df.dtypes
         new_df = []
-        row_map = {} 
+        row_map = {}
+
+        # To handle case when row (self.row_idx) is an empty list. Take the index of the given df
+        if not row:
+            row=list(df.index)
         
         start = time()
         idx_to_dup = rng.choice(row, size = int(self.deg * df.shape[0]), replace = False)
@@ -944,6 +949,97 @@ class NullifyStainer(Stainer):
         
         return new_df, {}, {}
 
+
+class CatCorrStainer(Stainer):
+    """
+    Stainer that raises the Mutual Information of two categorical columns as much as possible
+    """
+
+    def __init__(self, col_idx, name="CatCorr", max_n = 5000, min_inf = 0.5):
+        """
+        The constructor for the CatCorrStainer class
+
+        Parameters
+        ----------
+
+        col_idx : [int, int]
+            Column indexes of TWO categorical columns that will be manipulated to increase the mutual information between the two columns
+
+        name : str, optional
+            Name of stainer. Default is "CatCorr"
+
+        max_n : int, optional
+            The maximum number of iterations the simulated annealing call will do. By default is 5000 iterations
+
+        min_inf : int, optional
+            The desired amount of mutual information after which the simulated annealing algorithm will stop (unless the max no. of iterations
+            is reached first). By default is 0.5
+        """
+        super().__init__(name, [], col_idx)
+        self.max_n = max_n
+        self.min_inf = min_inf
+
+    def transform(self,  df, rng, row_idx = None, col_idx = None):
+        """
+
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Pandas DataFrame to operate on
+        rng : np.random.BitGenerator
+            PCG64 pseudo-random number generator. Not actually required for this call, but included for integration into
+             DirtyDf.py
+        row_idx
+        col_idx
+
+        Returns
+        -------
+        new_df : pd.DataFrame
+            Modified dataframe.
+        row_map : empty dictionary
+            This stainer does not produce any row mappings.
+        col_map : empty dictionary
+            This stainer does not produce any column mappings.
+        """
+
+        new_df, row, col = self._init_transform(df, row_idx, col_idx)
+        col = sorted(col)
+        # print(col)
+
+        # Track columns not being used for this stainer
+        keep_idx = [i for i in range(new_df.shape[1]) if i not in col]
+        keep_df = new_df.iloc[:, keep_idx].copy()
+
+        # DataFrame of columns used for this stainer
+        new_df = new_df.iloc[:, col]
+        new_colnames =new_df.columns # Note down the two column names
+
+        start = time()
+        # Get the new dataframe of the two columns, the old and new mutual information
+        new_df, old_mut, new_mut = new_mutual_cols(new_df, max_n=self.max_n, min_inf=self.min_inf)
+
+        # new_df = pd.concat([keep_df, new_df], axis=1)
+        # Insert the newly transformed columns into the original dataframe. Need to insert each column at it's original index
+        for i in range(len(col)):
+            colname=new_colnames[i]
+            idx= col[i]
+            values = new_df.loc[:, colname]
+            # print(idx, type(idx))
+            keep_df.insert(idx, colname, values)
+
+        # Convert back to categoriacal data type
+        new_df[new_colnames] = new_df[new_colnames].astype('category')
+        new_df = 0 #Reclaim some memory
+
+        message=f"Old Mutual Information was {old_mut}, new Mutual Information is {new_mut}"
+
+        end = time()
+
+        self.update_history(message, end-start)
+        return keep_df, {}, {}
+
+
 class BinningStainer(Stainer):
     """
     Stainer that bins continuous columns into discrete groups (each group represents an interval [a,b)).
@@ -1058,7 +1154,7 @@ class BinningStainer(Stainer):
         return new_df, {}, {}
 
       
-from ddf.latlong import Latlong
+from latlong import Latlong
 
 class LatlongFormatStainer(Stainer):
     """
