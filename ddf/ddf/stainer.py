@@ -10,6 +10,7 @@ from statsmodels.tools import add_constant
 from scipy.stats import spearmanr,norm
 from samplers import rand_from_Finv
 from catcorr import new_mutual_cols
+from NameMangler import mangle_names
 
 class Stainer:
     """Parent Stainer class that contains basic initialisations meant for all stainers to inherit from.
@@ -948,6 +949,80 @@ class NullifyStainer(Stainer):
         self.update_history(message, end - start)
         
         return new_df, {}, {}
+
+class NameManglerStainer(Stainer):
+    """
+    Stainer that mangles a column of names
+    """
+
+    def __init__(self, col_idx, name="NameMangler", n_iter=5):
+        """
+        The constructor for the CatCorrStainer class
+
+        Parameters
+        ----------
+
+        col_idx : [int]
+            Column index of the names. Should only have one element
+
+        name : str, optional
+            Name of stainer. Default is "CatCorr"
+
+        n_iter : Number of iterations for the name mangler
+        """
+        super().__init__(name, [], col_idx)
+        self.n_iter = n_iter
+
+    def transform(self,  df, rng, row_idx = None, col_idx = None):
+
+        """
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Pandas DataFrame to operate on
+        rng : np.random.BitGenerator
+            PCG64 pseudo-random number generator. Not actually required for this call, but included for integration into
+             DirtyDf.py
+        row_idx
+        col_idx
+
+        Returns
+        -------
+        new_df : pd.DataFrame
+            Modified dataframe.
+        row_map : empty dictionary
+            This stainer does not produce any row mappings.
+        col_map : empty dictionary
+            This stainer does not produce any column mappings.
+        """
+        new_df, row, col = self._init_transform(df, row_idx, col_idx)
+
+        if len(col) != 1:
+            raise Exception("Input col idx for NameMangler should only have one element per NameMangler Stainer")
+
+        else :
+            col = col[0]
+
+        # Get the column name
+        colname=new_df.iloc[:, col].name
+
+        start = time()
+
+        new_df[colname] = new_df.apply(lambda x : mangle_names(x[colname], n_iter = self.n_iter), axis=1)
+
+        message = f"Name Mangling completed using {self.n_iter} iterations of mangling on each FullName"
+
+        end=time()
+
+        self.update_history(message, end-start)
+
+        return new_df, {}, {}
+
+
+
+
+
+
 
 
 class CatCorrStainer(Stainer):
